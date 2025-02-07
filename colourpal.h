@@ -534,7 +534,7 @@ class ColourPal {
                 if (++currentline == 313) {
                     currentline = 1;
                     oddline = false;
-                    gpio_put(18, led = !led); // this really should be flickering more? 
+                    gpio_put(25, led = !led); // this really should be flickering more? 
                     memset(  backbuffer_B, levelBlank, SAMPLES_COLOUR); // in case anything hangs on from an array size issue
                 }
                 oddline = !oddline; // setting it ahead of the next line while we wait

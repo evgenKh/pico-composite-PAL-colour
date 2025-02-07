@@ -70,6 +70,11 @@ inline void dmacpy(uint8_t *dst, uint8_t *src, uint16_t size) {
 
 #include "colourpal.h"
 
+
+#include "I2cDevice.h"
+
+
+
 // one byte y, one byte u, one byte v, repeating for 125x64, line by line
 #define BUF_SIZE (XRESOLUTION*YRESOLUTION*3)
 int8_t buf0[BUF_SIZE];
@@ -115,13 +120,16 @@ int main() {
 	vreg_set_voltage(VREG_VSEL);
     set_sys_clock_khz(CLOCK_SPEED/1000.0f, true);
 
-    gpio_init(18);
+    sleep_ms(1000);
+    //setupI2C();
+
+    gpio_init(25);
     gpio_init(19);
     gpio_init(20);
-    gpio_set_dir(18, GPIO_OUT);
+    gpio_set_dir(25, GPIO_OUT);
     gpio_set_dir(19, GPIO_OUT);
     gpio_set_dir(20, GPIO_OUT);
-    gpio_put(18, 1); // R
+    gpio_put(25, 1); // R
     gpio_put(19, 1); // G
     gpio_put(20, 1); // B
 
