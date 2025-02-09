@@ -54,7 +54,7 @@ target_link_libraries(pico-composite-PAL-colour
 )
 pico_add_extra_outputs(pico-composite-PAL-colour)
 
-pico_enable_stdio_usb(pico-composite-PAL-colour 1)
+pico_enable_stdio_usb(pico-composite-PAL-colour 0)
 pico_enable_stdio_uart(pico-composite-PAL-colour 0)
 
 # for CPU clocks above 266 MHz, slow down access to the flash

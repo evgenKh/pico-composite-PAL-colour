@@ -121,7 +121,7 @@ int main() {
     set_sys_clock_khz(CLOCK_SPEED/1000.0f, true);
 
     sleep_ms(1000);
-    //setupI2C();
+    setupI2C();
 
     gpio_init(25);
     gpio_init(19);

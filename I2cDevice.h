@@ -15,10 +15,12 @@
 #define PIN_I2C_SDA 10
 #define PIN_I2C_SCL 11
 #define I2C_INST i2c_default
-#define I2C_BAUD_RATE (50*1000)
+#define I2C_BAUD_RATE (5*1000)
 
 
-#define FMS_I2C_DEV_ADDR _u(0x43)
+#define FMS_I2C_DEV_ADDR _u(0x03)
+#define FMS_I2C_DEV_ADDR43 _u(0x43)
+
 #define FMS_REG_OUT1_2 0x00
 #define FMS_REG_OUT3_4 0x01
 #define FMS_REG_OUT5_6 0x02
@@ -43,7 +45,7 @@
 #define FMS_BIAS 0
 #define FMS_CLAMP 1
 
-uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {FMS_INPUT_TESTPATTERN, FMS_INPUT_TESTPATTERN, FMS_INPUT_TESTPATTERN, FMS_INPUT_TESTPATTERN, FMS_INPUT_TESTPATTERN, FMS_INPUT_TESTPATTERN};
+uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {2, 1, 2, 2, 2, 2};
 
 
 void setupFMS();
@@ -61,7 +63,7 @@ void setFMSRegister(uint8_t address, uint8_t value);
 void setupI2C(){
     
     // Enable UART so we can print status output
-    stdio_init_all();
+    //stdio_init_all();
     sleep_ms(2000);
     printf("Done.\n");
     i2c_init(I2C_INST, I2C_BAUD_RATE);
@@ -84,10 +86,16 @@ void setupI2C(){
     
     ret = i2c_read_blocking(I2C_INST, FMS_I2C_DEV_ADDR, &rxdata, 1, false);
 
-    printf(ret < 0 ? "." : "@");
+    printf(ret < 0 ? "." : "@0x3");
+
+    ret = i2c_read_blocking(I2C_INST, FMS_I2C_DEV_ADDR43, &rxdata, 1, false);
+
+    printf(ret < 0 ? "." : "@0x43");
     printf("Done.\n");
 
     setupFMS();
+
+    i2c_deinit(I2C_INST);
 }
 
 
@@ -124,8 +132,14 @@ void setFMSRegister(uint8_t address, uint8_t value){
     rxdata[0] = address;
     rxdata[1] = value;
     
-    ret += i2c_write_blocking(I2C_INST, FMS_I2C_DEV_ADDR, &rxdata[1], 1, false);
-    ret += i2c_write_blocking(I2C_INST, FMS_I2C_DEV_ADDR, &rxdata[0], 1, true);
-
+    ret += i2c_write_blocking(I2C_INST, FMS_I2C_DEV_ADDR, &rxdata[0], 2, false);
+    //ret += i2c_write_blocking(I2C_INST, FMS_I2C_DEV_ADDR, &rxdata[1], 1, false);
+sleep_ms(100);
     printf("Set FMS register %X to %X. Errorcode: %d\n", rxdata[0], rxdata[1], ret);
+
+    
+    ret += i2c_write_blocking(I2C_INST, FMS_I2C_DEV_ADDR43, &rxdata[0], 2, false);
+    //ret += i2c_write_blocking(I2C_INST, FMS_I2C_DEV_ADDR, &rxdata[1], 1, false);
+sleep_ms(100);
+    printf("Set 0x43 FMS register %X to %X. Errorcode: %d\n", rxdata[0], rxdata[1], ret);
 }
