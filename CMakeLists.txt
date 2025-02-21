@@ -32,6 +32,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-usage")
 
 add_executable(pico-composite-PAL-colour
     pico-composite-PAL-colour.cpp
+    EepromStorage.cpp
 )
 
 pico_generate_pio_header(pico-composite-PAL-colour ${CMAKE_CURRENT_LIST_DIR}/dac.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
@@ -51,6 +52,7 @@ target_link_libraries(pico-composite-PAL-colour
 
     pico_stdio
     hardware_i2c
+    hardware_flash
 )
 pico_add_extra_outputs(pico-composite-PAL-colour)
 

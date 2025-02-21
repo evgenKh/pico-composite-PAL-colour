@@ -24,6 +24,8 @@
  *
  */
 
+#include "pins.h"
+
 #define HORIZONTAL_DOUBLING 1 // without x-resolution doubling
 //#define HORIZONTAL_DOUBLING 2
 
@@ -42,6 +44,13 @@
 #define YRESOLUTION 110 // this is multipled by two for the line count
 #define YDATA_START 43 // line number
 #define YDATA_END (YDATA_START + YRESOLUTION*2)
+//empty lines 1-6
+//?
+//data start line 43
+//data end line 262
+//empty lines 263-308
+//?
+//312 last line
 
 // PAL timings - these are here as consts because the division needs to process
 // a horizontal line is 64 microseconds
@@ -366,8 +375,9 @@ class ColourPal {
 
         inline void __time_critical_func(writepixels)(int32_t dmavfactor, uint8_t *backbuffer_B, uint32_t startpixel, uint32_t endpixel ) {
             // thanks to @Blayzeing and @ZodiusInfuser for some help with optimising this section
-//            gpio_put(26, 1); // for checking timing
-
+#ifdef PIN_LED_TIMINGS
+            gpio_put(PIN_LED_TIMINGS, 1); // for checking timing
+#endif
             // current colour being processed
             int32_t y = 0, u = 0, v = 0;
 
@@ -397,7 +407,9 @@ class ColourPal {
                     backbuffer_B[dmai2] = y + ((u * (*(SIN3p++)) + v * (*(COS3p++))) >> 7);
                 }
             }
-//            gpio_put(26, 0); // for checking timing
+#ifdef PIN_LED_TIMINGS
+            gpio_put(PIN_LED_TIMINGS, 0); // for checking timing
+#endif
         }
 
         void __time_critical_func(loop)() {
@@ -534,7 +546,9 @@ class ColourPal {
                 if (++currentline == 313) {
                     currentline = 1;
                     oddline = false;
-                    gpio_put(25, led = !led); // this really should be flickering more? 
+#ifdef PIN_LED_ODDEVEN
+                    gpio_put(PIN_LED_ODDEVEN, led = !led); // this really should be flickering more? 
+#endif
                     memset(  backbuffer_B, levelBlank, SAMPLES_COLOUR); // in case anything hangs on from an array size issue
                 }
                 oddline = !oddline; // setting it ahead of the next line while we wait

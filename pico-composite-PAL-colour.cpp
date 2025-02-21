@@ -40,6 +40,8 @@
 #include "hardware/vreg.h"
 #include "dac.pio.h"
 
+#include "EepromStorage.h"
+
 // find a CLOCKS_SPEED close to a multiple of the PAL carrier frequency
 // using pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py
 // then tweak it and CLOCK_DIV until a colour picture comes through
@@ -47,7 +49,7 @@
 #define CLOCK_SPEED 321e6
 // the divider adjusted by 1.0040, 41, 42, and 43 all works
 //#define CLOCK_DIV (9*1.0041)
-#define CLOCK_DIV (12*1.004)
+#define CLOCK_DIV (12*1.0015)
 
 
 #define DAC_FREQ float(CLOCK_SPEED / CLOCK_DIV) // this should be
@@ -68,7 +70,9 @@ inline void dmacpy(uint8_t *dst, uint8_t *src, uint16_t size) {
     dma_channel_set_write_addr(dma_chan32, NULL, false);
 }
 
+#include "pins.h"
 #include "colourpal.h"
+
 
 
 #include "I2cDevice.h"
@@ -101,7 +105,8 @@ int8_t buf1[BUF_SIZE];
 #endif
 
 ColourPal cp;
-#define NUM_DEMOS 10
+//#define NUM_DEMOS 10
+#define NUM_DEMOS 2
 #define DEMO_DURATION 5 // seconds to show each demo for
 
 // largeish memory requirements (big arrays), so global
@@ -114,33 +119,55 @@ Cube* cubes[NUM_CUBES] = {new Cube(20), new Cube(20), new Cube(20), new Cube(20)
 TriangleRenderer tr;
 
 
+EepromStorage g_eepromStorage;
+uint32_t g_clockSpeed = 321e6;
+float g_clockDiv = (12*1.0041);
+
+#define CLOCK_SPEED g_clockSpeed
+#define CLOCK_DIV g_clockDiv
+
 void core1_entry();
 
 int main() {
+
+    sleep_ms(100);
+    g_eepromStorage.Save();
+    g_eepromStorage.Load();
+    g_clockSpeed = g_eepromStorage.m_currentValue.m_clockSpeed;
+    g_clockDiv = g_eepromStorage.m_currentValue.m_clockDiv;
+
 	vreg_set_voltage(VREG_VSEL);
     set_sys_clock_khz(CLOCK_SPEED/1000.0f, true);
 
-    sleep_ms(1000);
+    sleep_ms(100);
     setupI2C();
+#ifdef PIN_LED_ODDEVEN
+    gpio_init(PIN_LED_ODDEVEN);
+    gpio_set_dir(PIN_LED_ODDEVEN, GPIO_OUT);
+    gpio_put(PIN_LED_ODDEVEN, 1); // R
+#endif
+#ifdef PIN_LED_FPS
+gpio_init(PIN_LED_FPS);
+gpio_set_dir(PIN_LED_FPS, GPIO_OUT);
+gpio_put(PIN_LED_FPS, 1); // B
+#endif
 
-    gpio_init(25);
-    gpio_init(19);
-    gpio_init(20);
-    gpio_set_dir(25, GPIO_OUT);
-    gpio_set_dir(19, GPIO_OUT);
-    gpio_set_dir(20, GPIO_OUT);
-    gpio_put(25, 1); // R
-    gpio_put(19, 1); // G
-    gpio_put(20, 1); // B
-
-    gpio_put(19, 0); // G
+#ifdef PIN_LED_INIT
+    gpio_init(PIN_LED_INIT);
+    gpio_set_dir(PIN_LED_INIT, GPIO_OUT);
+    gpio_put(PIN_LED_INIT, 1); // G
+    
+    gpio_put(PIN_LED_INIT, 0); // G
     sleep_ms(1000);
-    gpio_put(19, 1); // G
+    gpio_put(PIN_LED_INIT, 1); // G
+#endif
 
     // a pin out to use to check timings
-//    gpio_init(26); // Tiny2040 A0
-//    gpio_set_dir(26, GPIO_OUT);
-//    gpio_put(26, 0);
+#ifdef PIN_LED_TIMINGS
+    gpio_init(PIN_LED_TIMINGS); 
+    gpio_set_dir(PIN_LED_TIMINGS, GPIO_OUT);
+    gpio_put(PIN_LED_TIMINGS, 0);
+#endif
 
     // setup dma for dmacopy (faster than memcpy)
     dma_chan32 = dma_claim_unused_channel(true);
@@ -201,9 +228,11 @@ int main() {
         frame_start_time = time();
 
         // flash LED ahead of calculating frame
-        gpio_put(20, led = !led); 
+#ifdef PIN_LED_FPS        
+        gpio_put(PIN_LED_FPS, led = !led); 
         sleep_us(1000);
-        gpio_put(20, led = !led); 
+        gpio_put(PIN_LED_FPS, led = !led); 
+#endif        
 
 //        at = 7; // set at here to show one specific demo
 
