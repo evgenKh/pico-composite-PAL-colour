@@ -1,33 +1,53 @@
-#ifndef EEPROM_STORAGE_H
-#define EEPROM_STORAGE_H
+#ifndef EepromStorage_H
+#define EepromStorage_H
 
 #include "hardware/regs/addressmap.h"
 #include "hardware/flash.h"
 
+#include "pico/mutex.h"
+#include "pico/critical_section.h"
+
+
+extern char __flash_binary_start;  // defined in linker script
+extern char __flash_binary_end;    // defined in linker script
+
+class Option;
+
 class EepromStorage{
     public:
-    struct StorageData{
+    struct StorageDataHeader{
         uint32_t m_magic = 0x6969;
-        uint8_t m_version = 1;
-        uint32_t m_dataSize = sizeof(StorageData);
-
-        uint32_t m_clockSpeed = 321e6;
-        float m_clockDiv = (12*1.0041);
+        uint8_t m_version = 3;
+        uint32_t m_headerSize = sizeof(StorageDataHeader);
+        uint32_t m_dataSize = 0;
     };
 
-    void Load();
-    void Save();
+    EepromStorage();
+    bool Load(void* dstInRam, size_t size, size_t offsetInEeprom);
+    bool Save(void* srcInRam, size_t size, size_t offsetInEeprom, bool flush = true);
+    bool FlushSave();
 
-    StorageData m_currentValue;
+    void SetExpectedUserDataSize(size_t userDataSize)
+    {
+        m_dataHeader.m_dataSize = userDataSize;
+    }
+
+    bool IsStoredHeaderValid();
 
 protected:
-    static constexpr uint32_t m_dataSize = sizeof(StorageData);
+    //static constexpr uint32_t m_dataSize = sizeof(StorageData);
     static constexpr uint32_t m_dataSizeAligned = FLASH_SECTOR_SIZE;
     static constexpr uint32_t m_dataStart = PICO_FLASH_SIZE_BYTES - m_dataSizeAligned;
-    static_assert(m_dataSizeAligned >= m_dataSize);
+    //static_assert(m_dataSizeAligned >= m_dataSize);
 
-    StorageData m_loadedValue;    
+    
+
+    
+    //StorageData m_loadedValue;    
     uint8_t m_saveBuf[m_dataSizeAligned];
+    StorageDataHeader m_dataHeader;
 
 };
+
+
 #endif
