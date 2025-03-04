@@ -40,8 +40,6 @@
 #include "hardware/vreg.h"
 #include "dac.pio.h"
 
-#include "EepromStorage.h"
-
 // find a CLOCKS_SPEED close to a multiple of the PAL carrier frequency
 // using pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py
 // then tweak it and CLOCK_DIV until a colour picture comes through
@@ -76,6 +74,8 @@ inline void dmacpy(uint8_t *dst, uint8_t *src, uint16_t size) {
 
 
 #include "I2cDevice.h"
+#include "VideoSwitchDevice.h"
+#include "EepromStorage.h"
 
 
 
@@ -140,7 +140,21 @@ int main() {
     set_sys_clock_khz(CLOCK_SPEED/1000.0f, true);
 
     sleep_ms(100);
-    setupI2C();
+    //setupI2C();
+
+     //I2c
+     i2c_init(i2c1, 100*1000);//20kbps
+     gpio_set_function(PIN_I2C_SDA, GPIO_FUNC_I2C);
+     gpio_set_function(PIN_I2C_SCL, GPIO_FUNC_I2C);
+     gpio_pull_up(PIN_I2C_SDA);
+     gpio_pull_up(PIN_I2C_SCL);
+     sleep_ms(100);
+     VideoSwitchDevice videoSwitch;
+    videoSwitch.m_address = 0x03;
+    videoSwitch.m_i2cInstance = i2c1;
+    videoSwitch.Init();
+
+
 #ifdef PIN_LED_ODDEVEN
     gpio_init(PIN_LED_ODDEVEN);
     gpio_set_dir(PIN_LED_ODDEVEN, GPIO_OUT);

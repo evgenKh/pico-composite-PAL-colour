@@ -37,12 +37,12 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-usage")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-usage")
 
 add_executable(pico-composite-PAL-colour
-    SyncGlobals.cpp
-    #EepromStorage.cpp
-    OptionsRegistry.cpp
+    #SyncGlobals.cpp
+    EepromStorage.cpp
+    #OptionsRegistry.cpp
     pico-composite-PAL-colour.cpp
     #I2cDisplayDevice.cpp
-    #I2cDevice.cpp
+    I2cDevice.cpp
     #UiMenu.cpp
     #SettingsAndControls.cpp
 )
