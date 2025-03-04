@@ -34,22 +34,38 @@
 #include "pico/multicore.h"
 #include "hardware/pio.h"
 #include "hardware/dma.h"
-#include "hardware/irq.h"
+//#include "hardware/irq.h"
 #include "hardware/clocks.h"
 #include "hardware/regs/rosc.h"
 #include "hardware/vreg.h"
-#include "dac.pio.h"
 
-#include "EepromStorage.h"
+//#define CLOCK_SPEED_MAX (324e6)
+//#define CLOCK_DIV_MIN (12*0.99f)
+
+#define CLOCK_SPEED_MAX (321e6)
+#define CLOCK_DIV_MIN (12*1.0041f)
+
+////uint32_t g_clockSpeed = 321e6;
+float g_clockDiv = (12*1.0041);
+
+//#define CLOCK_SPEED g_clockSpeed
+//#define CLOCK_DIV g_clockDiv
+
+#define CLOCK_SPEED CLOCK_SPEED_MAX
+#define CLOCK_DIV CLOCK_DIV_MIN
+
+
+
+#include "dac.pio.h"
 
 // find a CLOCKS_SPEED close to a multiple of the PAL carrier frequency
 // using pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py
 // then tweak it and CLOCK_DIV until a colour picture comes through
 
-#define CLOCK_SPEED 321e6
+//#define CLOCK_SPEED 321e6
 // the divider adjusted by 1.0040, 41, 42, and 43 all works
 //#define CLOCK_DIV (9*1.0041)
-#define CLOCK_DIV (12*1.0015)
+//#define CLOCK_DIV (12*1.0015)
 
 
 #define DAC_FREQ float(CLOCK_SPEED / CLOCK_DIV) // this should be
@@ -72,12 +88,6 @@ inline void dmacpy(uint8_t *dst, uint8_t *src, uint16_t size) {
 
 #include "pins.h"
 #include "colourpal.h"
-
-
-
-#include "I2cDevice.h"
-
-
 
 // one byte y, one byte u, one byte v, repeating for 125x64, line by line
 #define BUF_SIZE (XRESOLUTION*YRESOLUTION*3)
@@ -106,7 +116,7 @@ int8_t buf1[BUF_SIZE];
 
 ColourPal cp;
 //#define NUM_DEMOS 10
-#define NUM_DEMOS 2
+#define NUM_DEMOS 8
 #define DEMO_DURATION 5 // seconds to show each demo for
 
 // largeish memory requirements (big arrays), so global
@@ -118,29 +128,32 @@ Cube* cubes[NUM_CUBES] = {new Cube(20), new Cube(20), new Cube(20), new Cube(20)
                     new Cube(20), new Cube(20), new Cube(20), new Cube(20)};
 TriangleRenderer tr;
 
+//#include "SettingsAndControls.h"
+//SettingsAndControls g_settingsAndControls;
 
-EepromStorage g_eepromStorage;
-uint32_t g_clockSpeed = 321e6;
-float g_clockDiv = (12*1.0041);
-
-#define CLOCK_SPEED g_clockSpeed
-#define CLOCK_DIV g_clockDiv
 
 void core1_entry();
 
 int main() {
 
-    sleep_ms(100);
-    g_eepromStorage.Save();
-    g_eepromStorage.Load();
-    g_clockSpeed = g_eepromStorage.m_currentValue.m_clockSpeed;
-    g_clockDiv = g_eepromStorage.m_currentValue.m_clockDiv;
+    sleep_ms(1000);
+#if USE_UBS_STDIO
+    stdio_init_all();
+    sleep_ms(1000);
+#endif
+
+    //g_settingsAndControls.InitOptions();
+    //g_clockSpeed = g_settingsAndControls.GetClockFreq();
+    //g_clockDiv = g_settingsAndControls.GetClockDiv();
 
 	vreg_set_voltage(VREG_VSEL);
+    
     set_sys_clock_khz(CLOCK_SPEED/1000.0f, true);
 
-    sleep_ms(100);
-    setupI2C();
+    sleep_ms(1000);
+    
+    //g_settingsAndControls.InitUi();
+    
 #ifdef PIN_LED_ODDEVEN
     gpio_init(PIN_LED_ODDEVEN);
     gpio_set_dir(PIN_LED_ODDEVEN, GPIO_OUT);
@@ -163,15 +176,16 @@ gpio_put(PIN_LED_FPS, 1); // B
 #endif
 
     // a pin out to use to check timings
-#ifdef PIN_LED_TIMINGS
-    gpio_init(PIN_LED_TIMINGS); 
-    gpio_set_dir(PIN_LED_TIMINGS, GPIO_OUT);
-    gpio_put(PIN_LED_TIMINGS, 0);
+#ifdef PIN_LED_PROFILING
+    gpio_init(PIN_LED_PROFILING); 
+    gpio_set_dir(PIN_LED_PROFILING, GPIO_OUT);
+    gpio_put(PIN_LED_PROFILING, 0);
 #endif
 
     // setup dma for dmacopy (faster than memcpy)
     dma_chan32 = dma_claim_unused_channel(true);
     dma_channel_config channel_config32 = dma_channel_get_default_config(dma_chan32);
+    g_dmaChanToStop32 = dma_chan32;
 
     channel_config_set_transfer_data_size(&channel_config32, DMA_SIZE_32); // transfer 32 bits at a time
     channel_config_set_read_increment(&channel_config32, true); 
@@ -604,13 +618,17 @@ gpio_put(PIN_LED_FPS, 1); // B
                 at = 1;
             }
         }
+
+        //Update UI on spare time after frame drawn
+        //g_settingsAndControls.Update();
+
         // 50 Hz? sleep up to 20 ms to do the next frame
         to_sleep = 20e3 - (time() - frame_start_time);
         if (to_sleep > 0) {
             sleep_us(to_sleep); 
         }
 
-    }
+    }//while(1)
 }
 
 // do all composite processing on the second core

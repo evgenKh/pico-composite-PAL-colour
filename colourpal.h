@@ -25,6 +25,7 @@
  */
 
 #include "pins.h"
+#include "SyncGlobals.h"
 
 #define HORIZONTAL_DOUBLING 1 // without x-resolution doubling
 //#define HORIZONTAL_DOUBLING 2
@@ -51,38 +52,6 @@
 //empty lines 263-308
 //?
 //312 last line
-
-// PAL timings - these are here as consts because the division needs to process
-// a horizontal line is 64 microseconds
-// this HAS to be divisible by 4 to use 32-bit DMA transfers
-// just SAMPLES_PER_LINE and SAMPLES_COLOUR maybe?
-// replace with static constexpr?
-const uint32_t SAMPLES_PER_LINE = 4*((uint32_t)((64 * DAC_FREQ / 1e6)/4)); // this HAS to be a multiple of 4!
-const uint32_t SAMPLES_GAP = 4.7 * DAC_FREQ / 1e6; // 312
-const uint32_t SAMPLES_SHORT_PULSE = 2.35 * DAC_FREQ / 1e6; // the time of the little blip down mid line
-const uint32_t SAMPLES_HSYNC = 4.7 * DAC_FREQ / 1e6; // horizontal sync duration
-const uint32_t SAMPLES_BACK_PORCH = 5.7 * DAC_FREQ / 1e6; // back porch duration
-const uint32_t SAMPLES_FRONT_PORCH = 1.7 * DAC_FREQ / 1e6; // front porch duration
-const uint32_t SAMPLES_UNTIL_BURST = 5.3 * DAC_FREQ / 1e6; // burst starts at this time
-const uint32_t SAMPLES_BURST = 2.5 * DAC_FREQ / 1e6; // burst duration
-const uint32_t SAMPLES_HALFLINE = SAMPLES_PER_LINE / 2;
-
-// PAL colour carrier frequency
-// this ideally needs to divide in some fashion into the DAC_FREQ?
-const float COLOUR_CARRIER = 4433618.75;
-
-// changing this changes how stretched the pixels are on screen
-const uint32_t SAMPLES_PER_PIXEL = 5*HORIZONTAL_DOUBLING;
- // the number of samples that make up the colour data to send
-const uint32_t SAMPLES_COLOUR = XRESOLUTION * SAMPLES_PER_PIXEL;
-// the number of samples that are not colour data
-//const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH + SAMPLES_OFF + <whatever is leftover at the end of the colour data>;
-const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_PER_LINE - SAMPLES_COLOUR;
-// the delay after the colour burst before display data starts, this is where we start copying data into the scanline
-// this also affects colour for some reason, so compensate by changing delay in populateBurst
-const uint32_t SAMPLES_OFF = (SAMPLES_SYNC_PORCHES - (SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH)) / 2; // center the picture?
-// the number of samples after the colour data before the front porch starts
-const uint32_t SAMPLES_DEAD_SPACE = SAMPLES_SYNC_PORCHES - SAMPLES_FRONT_PORCH - SAMPLES_HSYNC - SAMPLES_BACK_PORCH - SAMPLES_OFF; // the samples at the end of signal right before front porch
 
 // this should be 32 and 32, but load on core 0 slows core 1 down so that
 // the extra timing from rendering one fewer pixel across is needed
@@ -168,9 +137,42 @@ inline void setPixelRGBtwoX(int8_t *buf, int32_t xcoord, int32_t ycoord, uint8_t
 }
 
 
+
+struct MaxConsts{
+    //const float DAC_FREQ = float(CLOCK_SPEED_MAX / CLOCK_DIV_MIN); // this should be
+    // PAL timings - these are here as consts because the division needs to process
+    // a horizontal line is 64 microseconds
+    // this HAS to be divisible by 4 to use 32-bit DMA transfers
+    // just SAMPLES_PER_LINE and SAMPLES_COLOUR maybe?
+    // replace with static constexpr?
+    const uint32_t SAMPLES_PER_LINE = 4*((uint32_t)((64 * DAC_FREQ / 1e6)/4)); // this HAS to be a multiple of 4!
+    const uint32_t SAMPLES_GAP = 4.7 * DAC_FREQ / 1e6; // 312
+    const uint32_t SAMPLES_SHORT_PULSE = 2.35 * DAC_FREQ / 1e6; // the time of the little blip down mid line
+    const uint32_t SAMPLES_HSYNC = 4.7 * DAC_FREQ / 1e6; // horizontal sync duration
+    const uint32_t SAMPLES_BACK_PORCH = 5.7 * DAC_FREQ / 1e6; // back porch duration
+    const uint32_t SAMPLES_FRONT_PORCH = 1.7 * DAC_FREQ / 1e6; // front porch duration
+    const uint32_t SAMPLES_UNTIL_BURST = 5.3 * DAC_FREQ / 1e6; // burst starts at this time
+    const uint32_t SAMPLES_BURST = 2.5 * DAC_FREQ / 1e6; // burst duration
+    const uint32_t SAMPLES_HALFLINE = SAMPLES_PER_LINE / 2;
+
+    // PAL colour carrier frequency
+    // this ideally needs to divide in some fashion into the DAC_FREQ?
+    const float COLOUR_CARRIER = 4433618.75;
+
+    // changing this changes how stretched the pixels are on screen
+    const uint32_t SAMPLES_PER_PIXEL = 5*HORIZONTAL_DOUBLING;
+        // the number of samples that make up the colour data to send
+    const uint32_t SAMPLES_COLOUR = XRESOLUTION * SAMPLES_PER_PIXEL;
+    // the number of samples that are not colour data
+    //const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH + SAMPLES_OFF + <whatever is leftover at the end of the colour data>;
+    const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_PER_LINE - SAMPLES_COLOUR;
+};
+
+constexpr MaxConsts g_maxConsts;
+
 // the line of colour data being displayed
 // put it in its own SRAM bank for most reliable fast RAM access
-uint8_t __scratch_y("screenbuffer") screenbuffer_B[SAMPLES_COLOUR];
+uint8_t __scratch_y("screenbuffer") screenbuffer_B[g_maxConsts.SAMPLES_COLOUR];
 
 
 // note this does psuedo-progressive, which displays the same lines every field
@@ -191,32 +193,71 @@ class ColourPal {
         uint8_t dma_channel_A;//, dma_channel_B;
 
         // these lines are the same every frame
-        uint8_t line1_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line4_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line6odd_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line6even_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line6_B[SAMPLES_COLOUR];
-        uint8_t line1_B[SAMPLES_COLOUR];
-        uint8_t line3_B[SAMPLES_COLOUR];
-        uint8_t line4_B[SAMPLES_COLOUR];
+        uint8_t line1_A[g_maxConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line4_A[g_maxConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line6odd_A[g_maxConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line6even_A[g_maxConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line6_B[g_maxConsts.SAMPLES_COLOUR];
+        uint8_t line1_B[g_maxConsts.SAMPLES_COLOUR];
+        uint8_t line3_B[g_maxConsts.SAMPLES_COLOUR];
+        uint8_t line4_B[g_maxConsts.SAMPLES_COLOUR];
         // each PAL line is setup to be an A part and B part so that the colour data is < 4096 bytes and can be fit
         // within SRAM banks 5 and 6 (scratch x and y) to avoid contention with writing to one while the other
         // is read by the DMA... maybe...
 
         // the pre-calculated portion of the colour carrier
-        int32_t  __attribute__((__aligned__(4))) ALLSIN2[SAMPLES_COLOUR+SAMPLES_PER_PIXEL];  // aligned might not do anything here
+        int32_t  __attribute__((__aligned__(4))) ALLSIN2[g_maxConsts.SAMPLES_COLOUR+g_maxConsts.SAMPLES_PER_PIXEL];  // aligned might not do anything here
         // the colour burst
-        uint8_t burstOdd[SAMPLES_BURST]; // for odd lines
-        uint8_t burstEven[SAMPLES_BURST]; // for even lines
+        uint8_t burstOdd[g_maxConsts.SAMPLES_BURST]; // for odd lines
+        uint8_t burstEven[g_maxConsts.SAMPLES_BURST]; // for even lines
 
-        uint8_t colourbarsOdd_B[SAMPLES_COLOUR];
-        uint8_t colourbarsEven_B[SAMPLES_COLOUR];
+        uint8_t colourbarsOdd_B[g_maxConsts.SAMPLES_COLOUR];
+        uint8_t colourbarsEven_B[g_maxConsts.SAMPLES_COLOUR];
 
         int8_t* buf = NULL; // image data we are displaying
         uint32_t currentline = 1;
         bool oddline = true;
         bool led = false;
 
+        mutex_t dma_loop_mutex;
+
+
+        //Constants begin
+
+        //const float DAC_FREQ = float(CLOCK_SPEED_MAX / CLOCK_DIV_MIN); // this should be
+        // PAL timings - these are here as consts because the division needs to process
+        // a horizontal line is 64 microseconds
+        // this HAS to be divisible by 4 to use 32-bit DMA transfers
+        // just SAMPLES_PER_LINE and SAMPLES_COLOUR maybe?
+        // replace with static constexpr?
+        const uint32_t SAMPLES_PER_LINE = 4*((uint32_t)((64 * DAC_FREQ / 1e6)/4)); // this HAS to be a multiple of 4!
+        const uint32_t SAMPLES_GAP = 4.7 * DAC_FREQ / 1e6; // 312
+        const uint32_t SAMPLES_SHORT_PULSE = 2.35 * DAC_FREQ / 1e6; // the time of the little blip down mid line
+        const uint32_t SAMPLES_HSYNC = 4.7 * DAC_FREQ / 1e6; // horizontal sync duration
+        const uint32_t SAMPLES_BACK_PORCH = 5.7 * DAC_FREQ / 1e6; // back porch duration
+        const uint32_t SAMPLES_FRONT_PORCH = 1.7 * DAC_FREQ / 1e6; // front porch duration
+        const uint32_t SAMPLES_UNTIL_BURST = 5.3 * DAC_FREQ / 1e6; // burst starts at this time
+        const uint32_t SAMPLES_BURST = 2.5 * DAC_FREQ / 1e6; // burst duration
+        const uint32_t SAMPLES_HALFLINE = SAMPLES_PER_LINE / 2;
+        
+        // PAL colour carrier frequency
+        // this ideally needs to divide in some fashion into the DAC_FREQ?
+        const float COLOUR_CARRIER = 4433618.75;
+        
+        // changing this changes how stretched the pixels are on screen
+        const uint32_t SAMPLES_PER_PIXEL = 5*HORIZONTAL_DOUBLING;
+         // the number of samples that make up the colour data to send
+        const uint32_t SAMPLES_COLOUR = XRESOLUTION * SAMPLES_PER_PIXEL;
+        // the number of samples that are not colour data
+        //const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH + SAMPLES_OFF + <whatever is leftover at the end of the colour data>;
+        const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_PER_LINE - SAMPLES_COLOUR;
+        // the delay after the colour burst before display data starts, this is where we start copying data into the scanline
+        // this also affects colour for some reason, so compensate by changing delay in populateBurst
+        const uint32_t SAMPLES_OFF = (SAMPLES_SYNC_PORCHES - (SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH)) / 2; // center the picture?
+        // the number of samples after the colour data before the front porch starts
+        const uint32_t SAMPLES_DEAD_SPACE = SAMPLES_SYNC_PORCHES - SAMPLES_FRONT_PORCH - SAMPLES_HSYNC - SAMPLES_BACK_PORCH - SAMPLES_OFF; // the samples at the end of signal right before front porch
+        
+        //Constants end
     public:
         ColourPal() {}
 
@@ -234,6 +275,9 @@ class ColourPal {
 
             // DMA channel for syncs
             dma_channel_A = dma_claim_unused_channel(true);
+            
+//g_dmaChanToStopA = dma_channel_A;
+//g_dmaChanToStop32 = 0;
             dma_channel_config channel_configA = dma_channel_get_default_config(dma_channel_A);
 
             channel_config_set_transfer_data_size(&channel_configA, DMA_SIZE_32); // transfer 8 bits at a time
@@ -375,8 +419,8 @@ class ColourPal {
 
         inline void __time_critical_func(writepixels)(int32_t dmavfactor, uint8_t *backbuffer_B, uint32_t startpixel, uint32_t endpixel ) {
             // thanks to @Blayzeing and @ZodiusInfuser for some help with optimising this section
-#ifdef PIN_LED_TIMINGS
-            gpio_put(PIN_LED_TIMINGS, 1); // for checking timing
+#ifdef PIN_LED_PROFILING
+            gpio_put(PIN_LED_PROFILING, 1); // for checking timing
 #endif
             // current colour being processed
             int32_t y = 0, u = 0, v = 0;
@@ -407,8 +451,8 @@ class ColourPal {
                     backbuffer_B[dmai2] = y + ((u * (*(SIN3p++)) + v * (*(COS3p++))) >> 7);
                 }
             }
-#ifdef PIN_LED_TIMINGS
-            gpio_put(PIN_LED_TIMINGS, 0); // for checking timing
+#ifdef PIN_LED_PROFILING
+            gpio_put(PIN_LED_PROFILING, 0); // for checking timing
 #endif
         }
 
@@ -419,6 +463,12 @@ class ColourPal {
             int32_t dmavfactor; // multiply v by +1 or -1 depending on even or odd line
 
             while (true) { // could set this to a bool running; so that we can stop?
+                /*
+                if(mutex_is_initialized(&g_eepromMutex))
+                {
+                    mutex_enter_blocking(&g_eepromMutex);
+                }*/
+
                 dma_channel_set_trans_count(dma_channel_A, SAMPLES_SYNC_PORCHES / 4, false);
                 switch (currentline) {
                     case 1 ... 2:
@@ -556,6 +606,21 @@ class ColourPal {
                 // only continue to the beginning of the loop after all the line contents have been sent
                 dma_channel_wait_for_finish_blocking(dma_channel_A);
 
+
+/*
+                multicore_lockout_victim_init();
+
+                //dma_channel_wait_for_finish_blocking(dma_chan32);
+                if(mutex_is_initialized(&g_eepromMutex))
+                {
+                    if(critical_section_is_initialized(&g_eepromCritSection2))
+                        critical_section_enter_blocking(&g_eepromCritSection2);
+                    mutex_exit(&g_eepromMutex);
+                    
+                    if(critical_section_is_initialized(&g_eepromCritSection2))
+                        critical_section_exit(&g_eepromCritSection2);
+                }
+*/
             } // while (true)
         } // loop
 
