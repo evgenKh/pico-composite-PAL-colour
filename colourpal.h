@@ -25,6 +25,7 @@
  */
 
 #include "pins.h"
+#include "SyncGlobals.h"
 
 #define HORIZONTAL_DOUBLING 1 // without x-resolution doubling
 //#define HORIZONTAL_DOUBLING 2
@@ -52,41 +53,13 @@
 //?
 //312 last line
 
-// PAL timings - these are here as consts because the division needs to process
-// a horizontal line is 64 microseconds
-// this HAS to be divisible by 4 to use 32-bit DMA transfers
-// just SAMPLES_PER_LINE and SAMPLES_COLOUR maybe?
-// replace with static constexpr?
-const uint32_t SAMPLES_PER_LINE = 4*((uint32_t)((64 * DAC_FREQ / 1e6)/4)); // this HAS to be a multiple of 4!
-const uint32_t SAMPLES_GAP = 4.7 * DAC_FREQ / 1e6; // 312
-const uint32_t SAMPLES_SHORT_PULSE = 2.35 * DAC_FREQ / 1e6; // the time of the little blip down mid line
-const uint32_t SAMPLES_HSYNC = 4.7 * DAC_FREQ / 1e6; // horizontal sync duration
-const uint32_t SAMPLES_BACK_PORCH = 5.7 * DAC_FREQ / 1e6; // back porch duration
-const uint32_t SAMPLES_FRONT_PORCH = 1.7 * DAC_FREQ / 1e6; // front porch duration
-const uint32_t SAMPLES_UNTIL_BURST = 5.3 * DAC_FREQ / 1e6; // burst starts at this time
-const uint32_t SAMPLES_BURST = 2.5 * DAC_FREQ / 1e6; // burst duration
-const uint32_t SAMPLES_HALFLINE = SAMPLES_PER_LINE / 2;
-
-// PAL colour carrier frequency
-// this ideally needs to divide in some fashion into the DAC_FREQ?
-const float COLOUR_CARRIER = 4433618.75;
-
 // changing this changes how stretched the pixels are on screen
 const uint32_t SAMPLES_PER_PIXEL = 5*HORIZONTAL_DOUBLING;
  // the number of samples that make up the colour data to send
 const uint32_t SAMPLES_COLOUR = XRESOLUTION * SAMPLES_PER_PIXEL;
-// the number of samples that are not colour data
-//const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH + SAMPLES_OFF + <whatever is leftover at the end of the colour data>;
-const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_PER_LINE - SAMPLES_COLOUR;
-// the delay after the colour burst before display data starts, this is where we start copying data into the scanline
-// this also affects colour for some reason, so compensate by changing delay in populateBurst
-const uint32_t SAMPLES_OFF = (SAMPLES_SYNC_PORCHES - (SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH)) / 2; // center the picture?
-// the number of samples after the colour data before the front porch starts
-const uint32_t SAMPLES_DEAD_SPACE = SAMPLES_SYNC_PORCHES - SAMPLES_FRONT_PORCH - SAMPLES_HSYNC - SAMPLES_BACK_PORCH - SAMPLES_OFF; // the samples at the end of signal right before front porch
 
 // this should be 32 and 32, but load on core 0 slows core 1 down so that
 // the extra timing from rendering one fewer pixel across is needed
-
 #if HORIZONTAL_DOUBLING == 2
     const uint8_t PIXELS_A = 24; // how many pixels are processed during sync
 #else
@@ -168,6 +141,39 @@ inline void setPixelRGBtwoX(int8_t *buf, int32_t xcoord, int32_t ycoord, uint8_t
 }
 
 
+struct PalConsts{
+    // PAL timings - these are here as consts because the division needs to process
+    // a horizontal line is 64 microseconds
+    // this HAS to be divisible by 4 to use 32-bit DMA transfers
+    // just SAMPLES_PER_LINE and SAMPLES_COLOUR maybe?
+    // replace with static constexpr?
+    const float DAC_FREQ_MAX = float(CLOCK_SPEED_MAX / CLOCK_DIV_MIN); // this should be
+    const uint32_t SAMPLES_PER_LINE = 4*((uint32_t)((64 * DAC_FREQ_MAX / 1e6)/4)); // this HAS to be a multiple of 4!
+    const uint32_t SAMPLES_GAP = 4.7 * DAC_FREQ_MAX / 1e6; // 312
+    const uint32_t SAMPLES_SHORT_PULSE = 2.35 * DAC_FREQ_MAX / 1e6; // the time of the little blip down mid line
+    const uint32_t SAMPLES_HSYNC = 4.7 * DAC_FREQ_MAX / 1e6; // horizontal sync duration
+    const uint32_t SAMPLES_BACK_PORCH = 5.7 * DAC_FREQ_MAX / 1e6; // back porch duration
+    const uint32_t SAMPLES_FRONT_PORCH = 1.7 * DAC_FREQ_MAX / 1e6; // front porch duration
+    const uint32_t SAMPLES_UNTIL_BURST = 5.3 * DAC_FREQ_MAX / 1e6; // burst starts at this time
+    const uint32_t SAMPLES_BURST = 2.5 * DAC_FREQ_MAX / 1e6; // burst duration
+    const uint32_t SAMPLES_HALFLINE = SAMPLES_PER_LINE / 2;
+
+    // PAL colour carrier frequency
+    // this ideally needs to divide in some fashion into the DAC_FREQ?
+    const float COLOUR_CARRIER = 4433618.75;
+
+    // the number of samples that are not colour data
+    //const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH + SAMPLES_OFF + <whatever is leftover at the end of the colour data>;
+    const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_PER_LINE - SAMPLES_COLOUR;
+    // the delay after the colour burst before display data starts, this is where we start copying data into the scanline
+    // this also affects colour for some reason, so compensate by changing delay in populateBurst
+    const uint32_t SAMPLES_OFF = (SAMPLES_SYNC_PORCHES - (SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH)) / 2; // center the picture?
+    // the number of samples after the colour data before the front porch starts
+    const uint32_t SAMPLES_DEAD_SPACE = SAMPLES_SYNC_PORCHES - SAMPLES_FRONT_PORCH - SAMPLES_HSYNC - SAMPLES_BACK_PORCH - SAMPLES_OFF; // the samples at the end of signal right before front porch
+
+};
+constexpr PalConsts g_defConsts;
+
 // the line of colour data being displayed
 // put it in its own SRAM bank for most reliable fast RAM access
 uint8_t __scratch_y("screenbuffer") screenbuffer_B[SAMPLES_COLOUR];
@@ -175,6 +181,41 @@ uint8_t __scratch_y("screenbuffer") screenbuffer_B[SAMPLES_COLOUR];
 
 // note this does psuedo-progressive, which displays the same lines every field
 class ColourPal {
+
+    private:
+    
+// PAL timings - these are here as consts because the division needs to process
+// a horizontal line is 64 microseconds
+// this HAS to be divisible by 4 to use 32-bit DMA transfers
+// just SAMPLES_PER_LINE and SAMPLES_COLOUR maybe?
+// replace with static constexpr?
+
+
+const float CLOCK_SPEED;
+const float CLOCK_DIV;
+const float DAC_FREQ = float(CLOCK_SPEED / CLOCK_DIV);
+const uint32_t SAMPLES_PER_LINE = 4*((uint32_t)((64 * DAC_FREQ / 1e6)/4)); // this HAS to be a multiple of 4!
+const uint32_t SAMPLES_GAP = 4.7 * DAC_FREQ / 1e6; // 312
+const uint32_t SAMPLES_SHORT_PULSE = 2.35 * DAC_FREQ / 1e6; // the time of the little blip down mid line
+const uint32_t SAMPLES_HSYNC = 4.7 * DAC_FREQ / 1e6; // horizontal sync duration
+const uint32_t SAMPLES_BACK_PORCH = 5.7 * DAC_FREQ / 1e6; // back porch duration
+const uint32_t SAMPLES_FRONT_PORCH = 1.7 * DAC_FREQ / 1e6; // front porch duration
+const uint32_t SAMPLES_UNTIL_BURST = 5.3 * DAC_FREQ / 1e6; // burst starts at this time
+const uint32_t SAMPLES_BURST = 2.5 * DAC_FREQ / 1e6; // burst duration
+const uint32_t SAMPLES_HALFLINE = SAMPLES_PER_LINE / 2;
+
+// PAL colour carrier frequency
+// this ideally needs to divide in some fashion into the DAC_FREQ?
+const float COLOUR_CARRIER = 4433618.75;
+
+// the number of samples that are not colour data
+//const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH + SAMPLES_OFF + <whatever is leftover at the end of the colour data>;
+const uint32_t SAMPLES_SYNC_PORCHES = SAMPLES_PER_LINE - SAMPLES_COLOUR;
+// the delay after the colour burst before display data starts, this is where we start copying data into the scanline
+// this also affects colour for some reason, so compensate by changing delay in populateBurst
+const uint32_t SAMPLES_OFF = (SAMPLES_SYNC_PORCHES - (SAMPLES_FRONT_PORCH + SAMPLES_HSYNC + SAMPLES_BACK_PORCH)) / 2; // center the picture?
+// the number of samples after the colour data before the front porch starts
+const uint32_t SAMPLES_DEAD_SPACE = SAMPLES_SYNC_PORCHES - SAMPLES_FRONT_PORCH - SAMPLES_HSYNC - SAMPLES_BACK_PORCH - SAMPLES_OFF; // the samples at the end of signal right before front porch
 
     private:
         // voltages
@@ -191,10 +232,10 @@ class ColourPal {
         uint8_t dma_channel_A;//, dma_channel_B;
 
         // these lines are the same every frame
-        uint8_t line1_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line4_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line6odd_A[SAMPLES_SYNC_PORCHES];
-        uint8_t line6even_A[SAMPLES_SYNC_PORCHES];
+        uint8_t line1_A[g_defConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line4_A[g_defConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line6odd_A[g_defConsts.SAMPLES_SYNC_PORCHES];
+        uint8_t line6even_A[g_defConsts.SAMPLES_SYNC_PORCHES];
         uint8_t line6_B[SAMPLES_COLOUR];
         uint8_t line1_B[SAMPLES_COLOUR];
         uint8_t line3_B[SAMPLES_COLOUR];
@@ -206,8 +247,8 @@ class ColourPal {
         // the pre-calculated portion of the colour carrier
         int32_t  __attribute__((__aligned__(4))) ALLSIN2[SAMPLES_COLOUR+SAMPLES_PER_PIXEL];  // aligned might not do anything here
         // the colour burst
-        uint8_t burstOdd[SAMPLES_BURST]; // for odd lines
-        uint8_t burstEven[SAMPLES_BURST]; // for even lines
+        uint8_t burstOdd[g_defConsts.SAMPLES_BURST]; // for odd lines
+        uint8_t burstEven[g_defConsts.SAMPLES_BURST]; // for even lines
 
         uint8_t colourbarsOdd_B[SAMPLES_COLOUR];
         uint8_t colourbarsEven_B[SAMPLES_COLOUR];
@@ -218,7 +259,15 @@ class ColourPal {
         bool led = false;
 
     public:
-        ColourPal() {}
+        ColourPal():
+            CLOCK_SPEED(CLOCK_SPEED_MAX),
+            CLOCK_DIV(CLOCK_DIV_MIN)
+            {}
+
+        ColourPal(uint32_t clockSpeed, float clockDiv):
+            CLOCK_SPEED(clockSpeed),
+            CLOCK_DIV(clockDiv)
+            {}
 
         void init() {
 
@@ -370,6 +419,7 @@ class ColourPal {
 
 
         void start() {
+            multicore_lockout_victim_init();//Slow!!!
             loop();
         }
 
@@ -555,7 +605,18 @@ class ColourPal {
 
                 // only continue to the beginning of the loop after all the line contents have been sent
                 dma_channel_wait_for_finish_blocking(dma_channel_A);
-
+/*
+                if(mutex_is_initialized(&g_eepromMutex))
+                {
+                    if(mutex_try_enter(&g_eepromMutex, nullptr))
+                    {
+                        mutex_exit(&g_eepromMutex);
+                    }
+                    else
+                    {
+                        multicore_lockout_victim_init();//Slow!!!
+                    }
+                }*/
             } // while (true)
         } // loop
 

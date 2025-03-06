@@ -19,7 +19,7 @@ class EepromStorage{
         uint32_t m_magic = 0x6969;
         uint8_t m_version = 3;
         uint32_t m_headerSize = sizeof(StorageDataHeader);
-        uint32_t m_dataSize = 0;
+        uint32_t m_userDataSize = 0;
     };
 
     EepromStorage();
@@ -29,7 +29,7 @@ class EepromStorage{
 
     void SetExpectedUserDataSize(size_t userDataSize)
     {
-        m_dataHeader.m_dataSize = userDataSize;
+        m_dataHeader.m_userDataSize = userDataSize;
     }
 
     bool IsStoredHeaderValid();

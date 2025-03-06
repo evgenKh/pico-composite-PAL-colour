@@ -70,22 +70,22 @@ bool EepromStorage::FlushSave()
         uint32_t ints = save_and_disable_interrupts();
 
         // disable the channel on IRQ0
-        dma_channel_set_irq0_enabled(g_dmaChanToStopA, false);
-        // abort the channel
-        dma_channel_abort(g_dmaChanToStopA);
-        // clear the spurious IRQ (if there was one)
-        dma_channel_acknowledge_irq0(g_dmaChanToStopA);
-        // re-enable the channel on IRQ0
-        dma_channel_set_irq0_enabled(g_dmaChanToStopA, true);
-
-        // disable the channel on IRQ0
-        dma_channel_set_irq0_enabled(g_dmaChanToStop32, false);
-        // abort the channel
-        dma_channel_abort(g_dmaChanToStop32);
-        // clear the spurious IRQ (if there was one)
-        dma_channel_acknowledge_irq0(g_dmaChanToStop32);
-        // re-enable the channel on IRQ0
-        dma_channel_set_irq0_enabled(g_dmaChanToStop32, true);
+        //dma_channel_set_irq0_enabled(g_dmaChanToStopA, false);
+        //// abort the channel
+        //dma_channel_abort(g_dmaChanToStopA);
+        //// clear the spurious IRQ (if there was one)
+        //dma_channel_acknowledge_irq0(g_dmaChanToStopA);
+        //// re-enable the channel on IRQ0
+        //dma_channel_set_irq0_enabled(g_dmaChanToStopA, true);
+//
+        //// disable the channel on IRQ0
+        //dma_channel_set_irq0_enabled(g_dmaChanToStop32, false);
+        //// abort the channel
+        //dma_channel_abort(g_dmaChanToStop32);
+        //// clear the spurious IRQ (if there was one)
+        //dma_channel_acknowledge_irq0(g_dmaChanToStop32);
+        //// re-enable the channel on IRQ0
+        //dma_channel_set_irq0_enabled(g_dmaChanToStop32, true);
 
 
 
@@ -133,7 +133,7 @@ bool EepromStorage::IsStoredHeaderValid()
     if(m_dataHeader.m_magic == loadedHeader->m_magic &&
         m_dataHeader.m_version == loadedHeader->m_version &&
         m_dataHeader.m_headerSize == loadedHeader->m_headerSize &&
-        m_dataHeader.m_dataSize == loadedHeader->m_dataSize)
+        m_dataHeader.m_userDataSize == loadedHeader->m_userDataSize)
     {
         return true;
     }

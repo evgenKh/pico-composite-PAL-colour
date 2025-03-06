@@ -20,16 +20,12 @@
 #define FMS_REG_GAIN 0x04
 
 #define FMS_INPUTS_COUNT 8
-#define FMS_INPUT_TESTPATTERN 6
-#define FMS_INPUT_CAMERA 1
-#define FMS_INPUT_NONE 0
+//#define FMS_INPUT_TESTPATTERN 6
+//#define FMS_INPUT_CAMERA 1
+//#define FMS_INPUT_NONE 0
 
 #define FMS_OUTPUTS_COUNT 6
-#define FMS_OUTPUT_RCA 2
-#define FMS_OUTPUT_5_8G 4
-#define FMS_OUTPUT_1_2G 3
-#define FMS_OUTPUT_3_3G 5
-#define FMS_OUTPUT_USB 1
+
 
 #define FMS_GAIN_6dB 0
 #define FMS_GAIN_0dB 1
@@ -40,7 +36,7 @@
 class VideoSwitchDevice : public I2cDevice{
 public:
 
-uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {6, 6, 6, 6, 6, 6};
+uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {0, 0, 0, 0, 0, 0};
 
 
 
@@ -50,22 +46,31 @@ uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {6, 6, 6, 6, 6, 6};
   //bool reserved_addr(uint8_t addr) {
   //    return (addr & 0x78) == 0 || (addr & 0x78) == 0x78;
   //}
-  
-  
-  void Init(){
-      
+  void SetChannel(uint8_t output, uint8_t input)
+  {
+    if(output < FMS_OUTPUTS_COUNT && input < FMS_INPUTS_COUNT)
+    {
+      g_fms_outputs[output] = input;
+    }
+  }
 
-      uint8_t mainInput = (false ? 3 : 6);
-      memset(g_fms_outputs, mainInput, FMS_OUTPUTS_COUNT);
+  inline uint8_t GetInputChannel(uint8_t output) const{
+    if(output < FMS_OUTPUTS_COUNT)
+    {
+      return g_fms_outputs[output];
+    } 
+    return 0;
+  }
+  
+  void Init(){    
+      //uint8_t mainInput = (false ? 3 : 6);
+      memset(g_fms_outputs, 0, FMS_OUTPUTS_COUNT);
       int ret;
       uint8_t rxdata;
-      
-
       printf(CheckIsConnected() ? ".0x3" : "@0x3");
 
       setupFMS();
   }
-
 
   void setupFMS(){
     uint8_t regOut1_2Value = (g_fms_outputs[0] & 0x0F) | ((g_fms_outputs[1] << 4) & 0xF0);
@@ -79,7 +84,6 @@ uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {6, 6, 6, 6, 6, 6};
     setFMSRegister(FMS_REG_OUT1_2, regOut1_2Value);
     setFMSRegister(FMS_REG_OUT3_4, regOut3_4Value);
     setFMSRegister(FMS_REG_OUT5_6, regOut5_6Value);  
-
   }
 
   void updateFMSChannels(){
@@ -89,7 +93,6 @@ uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {6, 6, 6, 6, 6, 6};
     setFMSRegister(FMS_REG_OUT1_2, regOut1_2Value);
     setFMSRegister(FMS_REG_OUT3_4, regOut3_4Value);
     setFMSRegister(FMS_REG_OUT5_6, regOut5_6Value); 
-
   }
 
   void setFMSRegister(uint8_t address, uint8_t value){
@@ -101,9 +104,8 @@ uint8_t g_fms_outputs[FMS_OUTPUTS_COUNT] = {6, 6, 6, 6, 6, 6};
       rxdata[1] = value;
       
       ret += SendBytes( &rxdata[0], 2);
-  sleep_ms(100);
+      sleep_ms(50);
       printf("Set FMS register %X to %X. bytes written: %d\n", rxdata[0], rxdata[1], ret);
-
   }
 
 };

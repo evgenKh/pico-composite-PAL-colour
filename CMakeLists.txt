@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD pico CACHE STRING "Board type")
 
 #set(PICO_COPY_TO_RAM 1  CACHE STRING "" FORCE)
-set(USE_U8G2 FALSE)
+set(USE_U8G2 TRUE)
 set(USE_UBS_STDIO FALSE)
 
 
@@ -39,12 +39,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-usage")
 add_executable(pico-composite-PAL-colour
     #SyncGlobals.cpp
     EepromStorage.cpp
-    #OptionsRegistry.cpp
+    OptionsRegistry.cpp
     pico-composite-PAL-colour.cpp
-    #I2cDisplayDevice.cpp
+    I2cDisplayDevice.cpp
     I2cDevice.cpp
-    #UiMenu.cpp
-    #SettingsAndControls.cpp
+    UiMenu.cpp
+    SettingsAndControls.cpp
 )
 
 pico_generate_pio_header(pico-composite-PAL-colour ${CMAKE_CURRENT_LIST_DIR}/dac.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)

@@ -39,20 +39,19 @@
 #include "hardware/regs/rosc.h"
 #include "hardware/vreg.h"
 
+#include "EepromStorage.h"
+#include "VideoSwitchDevice.h"
+#include "SettingsAndControls.h"
+#include "hardware/i2c.h"
 //#define CLOCK_SPEED_MAX (324e6)
 //#define CLOCK_DIV_MIN (12*0.99f)
 
-#define CLOCK_SPEED_MAX (321e6)
-#define CLOCK_DIV_MIN (12*1.0041f)
+#define CLOCK_SPEED_MAX (324e6)
+#define CLOCK_DIV_MIN (12*0.99)
 
-////uint32_t g_clockSpeed = 321e6;
-float g_clockDiv = (12*1.0041);
 
-//#define CLOCK_SPEED g_clockSpeed
-//#define CLOCK_DIV g_clockDiv
-
-#define CLOCK_SPEED CLOCK_SPEED_MAX
-#define CLOCK_DIV CLOCK_DIV_MIN
+//#define CLOCK_SPEED CLOCK_SPEED_MAX
+//#define CLOCK_DIV CLOCK_DIV_MIN
 
 
 
@@ -68,7 +67,7 @@ float g_clockDiv = (12*1.0041);
 //#define CLOCK_DIV (12*1.0015)
 
 
-#define DAC_FREQ float(CLOCK_SPEED / CLOCK_DIV) // this should be
+//#define DAC_FREQ float(CLOCK_SPEED / CLOCK_DIV) // this should be
 
 //#define VREG_VSEL VREG_VOLTAGE_1_15
 #define VREG_VSEL VREG_VOLTAGE_1_20
@@ -114,7 +113,7 @@ int8_t buf1[BUF_SIZE];
     #include "hsv.h"
 #endif
 
-ColourPal cp;
+ColourPal* cp;
 //#define NUM_DEMOS 10
 #define NUM_DEMOS 8
 #define DEMO_DURATION 5 // seconds to show each demo for
@@ -133,31 +132,38 @@ EepromStorage g_eepromStorage;
 uint32_t g_clockSpeed = 321e6;
 float g_clockDiv = (12*1.0041);
 
-#define CLOCK_SPEED g_clockSpeed
-#define CLOCK_DIV g_clockDiv
+//#define CLOCK_SPEED g_clockSpeed
+//#define CLOCK_DIV g_clockDiv
+SettingsAndControls g_settingsAndControls;
 
 void core1_entry();
 
 int main() {
 
-    sleep_ms(1000);
+    sleep_ms(100);
 #if USE_UBS_STDIO
     stdio_init_all();
-    sleep_ms(1000);
+    sleep_ms(100);
 #endif
 
-    //g_settingsAndControls.InitOptions();
-    //g_clockSpeed = g_settingsAndControls.GetClockFreq();
-    //g_clockDiv = g_settingsAndControls.GetClockDiv();
+    g_settingsAndControls.InitControls();
+    g_settingsAndControls.InitOptions();
+    g_clockSpeed = g_settingsAndControls.GetClockFreq();
+    g_clockDiv = g_settingsAndControls.GetClockDiv();
 
 	vreg_set_voltage(VREG_VSEL);
     
-    set_sys_clock_khz(CLOCK_SPEED/1000.0f, true);
+    set_sys_clock_khz((float)g_clockSpeed/1000.0f, true);
 
-    sleep_ms(1000);
-    
-    //g_settingsAndControls.InitUi();
-    
+    sleep_ms(100);
+        
+    g_settingsAndControls.InitUi();
+    g_settingsAndControls.InitTX();
+
+    cp = new ColourPal(g_clockSpeed, g_clockDiv);
+
+
+
 #ifdef PIN_LED_ODDEVEN
     gpio_init(PIN_LED_ODDEVEN);
     gpio_set_dir(PIN_LED_ODDEVEN, GPIO_OUT);
@@ -175,7 +181,7 @@ gpio_put(PIN_LED_FPS, 1); // B
     gpio_put(PIN_LED_INIT, 1); // G
     
     gpio_put(PIN_LED_INIT, 0); // G
-    sleep_ms(1000);
+    sleep_ms(100);
     gpio_put(PIN_LED_INIT, 1); // G
 #endif
 
@@ -234,10 +240,10 @@ gpio_put(PIN_LED_FPS, 1); // B
     bool buf = false; // buf0
     int8_t *tbuf;
 
-    sleep_ms(1000);
+    sleep_ms(100);
 
     bool led = true;
-    uint8_t at = 1;
+    uint8_t at = 0;
     uint64_t numframes = 0;
     uint64_t demo_start_time = time(), frame_start_time;
     int64_t to_sleep;
@@ -604,7 +610,7 @@ gpio_put(PIN_LED_FPS, 1); // B
             writeStr(tbuf, XRESOLUTION-21, 9, txtbuf, 0, 100, 0, true);
         }
 
-        cp.setBuf(tbuf);
+        //cp->setBuf(tbuf);
         
         if (time() - demo_start_time > DEMO_DURATION*1e6) {
             at++;
@@ -623,10 +629,11 @@ gpio_put(PIN_LED_FPS, 1); // B
         }
 
         //Update UI on spare time after frame drawn
-        //g_settingsAndControls.Update();
+        g_settingsAndControls.Update();
+        g_settingsAndControls.UpdateTX();
 
         // 50 Hz? sleep up to 20 ms to do the next frame
-        to_sleep = 20e3 - (time() - frame_start_time);
+        to_sleep = 20e3*1.2 - (time() - frame_start_time);
         if (to_sleep > 0) {
             sleep_us(to_sleep); 
         }
@@ -637,8 +644,8 @@ gpio_put(PIN_LED_FPS, 1); // B
 // do all composite processing on the second core
 void core1_entry() {
 
-    cp.init();
-    cp.start();
+    cp->init();
+    cp->start();
 
     // should never get here, cp.start() should loop
     while (1) {
