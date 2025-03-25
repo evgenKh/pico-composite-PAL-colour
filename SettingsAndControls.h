@@ -8,9 +8,9 @@
 #define FMS_OUTPUT_AV_OUT (6-1)
 #define FMS_OUTPUT_5_8G (4-1)
 #define FMS_OUTPUT_1_2G (5-1)
-#define FMS_OUTPUT_3_3G (2-1)
+#define FMS_OUTPUT_3_3G (3-1)
 #define FMS_OUTPUT_SCRAMBLER (1-1)
-#define FMS_OUTPUT_USB (3-1)
+//#define FMS_OUTPUT_USB (3-1)
 
 //inputs are 1-based
 #define FMS_INPUT_CAMERA 3
