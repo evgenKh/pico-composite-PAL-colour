@@ -40,6 +40,7 @@ add_executable(pico-composite-PAL-colour
     #SyncGlobals.cpp
     EepromStorage.cpp
     OptionsRegistry.cpp
+    Option.cpp
     pico-composite-PAL-colour.cpp
     I2cDisplayDevice.cpp
     I2cDevice.cpp

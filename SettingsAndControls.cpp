@@ -47,7 +47,7 @@ void SettingsAndControls::InitOptions()
     m_optionsRegistry = new OptionsRegistry();
 
     m_optionClockDivAdjust = m_optionsRegistry->AddOption(Option("DivAdj", 1000000, 990000, 1010000, 200) );
-    m_optionClockFreq = m_optionsRegistry->AddOption(Option("Freq", 321e6, 316e6, 324e6, 200000));
+    m_optionClockFreq = m_optionsRegistry->AddOption(Option("Freq", 321e6, 316e6, 324e6, 200000, Option::Int32MHzFormatter));
     m_optionClockDiv = m_optionsRegistry->AddOption(Option("ClkDiv", 12, 12, 12, 1) );
     //m_optionTest = m_optionsRegistry->AddOption(Option("Test", 1, -5, 5, 1));
 
@@ -92,7 +92,12 @@ void SettingsAndControls::InitUi()
     
     
     m_display->m_address = 0x3c;
-    m_display->m_i2cInstance = i2c1;
+
+#if defined(ARDUINO)
+    m_display->m_i2cInterface = I2C;
+#elif defined(PLATFORM_PICO)
+   m_display->m_i2cInstance = i2c1;
+#endif
 
     printf("Display %s connected", (m_display->CheckIsConnected() ? "" : "not"));
     m_display->Init();
@@ -101,27 +106,26 @@ void SettingsAndControls::InitUi()
 
     UiMenuPage page1;
     page1.m_title = "page1";
-    page1.m_items.emplace_back(UiMenuItem(m_optionVideoAvOut));
-    page1.m_items.emplace_back(UiMenuItem(m_optionVideoTx1g2));
-    page1.m_items.emplace_back(UiMenuItem(m_optionVideoTx5g8));
-    page1.m_items.emplace_back(UiMenuItem(m_optionVideoTx3g3));
+    //page1.m_items.emplace_back(UiMenuItem::CreateWithGoToPage("err_page", 1));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionVideoAvOut));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionVideoTx1g2));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionVideoTx5g8));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionVideoTx3g3));
 
-    page1.m_items.emplace_back(UiMenuItem(m_optionClockDivAdjust));
-    page1.m_items.emplace_back(UiMenuItem(m_optionClockFreq));
-    page1.m_items.emplace_back(UiMenuItem(m_optionClockDiv));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionClockDivAdjust));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionClockFreq));
+    page1.m_items.emplace_back(UiMenuItem::CreateWithOption(m_optionClockDiv));
 
     UiMenuItem rebootItem;
     rebootItem.m_title = " Save&Reboot";
     rebootItem.m_callbackFunc = &SettingsAndControls::Reboot;
-    page1.m_items.emplace_back(rebootItem);    
+    page1.m_items.emplace_back(UiMenuItem::CreateWithCallback(" Save&Reboot", &SettingsAndControls::Reboot, nullptr));    
 
     m_uiMenu->m_pages.push_back(page1);
 
     UiMenuPage errorPage;
     errorPage.m_title = "errorPage";
-    UiMenuItem freeSpaceErrorItem;
-    freeSpaceErrorItem.m_title = "No free space to save.";
-    errorPage.m_items.emplace_back(freeSpaceErrorItem);    
+    errorPage.m_items.emplace_back(UiMenuItem::CreateInactive("No free space to save."));
     m_uiMenu->m_pages.push_back(errorPage);
 
     m_uiMenu->m_display = m_display;
@@ -171,7 +175,13 @@ void SettingsAndControls::Update()
 void SettingsAndControls::InitTX()
 {
     m_videoSwitch->m_address = 0x03;
+    
+#if defined(ARDUINO)
+    m_videoSwitch->m_i2cInterface = I2C;
+#elif defined(PLATFORM_PICO)
     m_videoSwitch->m_i2cInstance = i2c1;
+#endif
+
     m_videoSwitch->Init();
 
     gpio_init(PIN_POWERON_TX_1G2);

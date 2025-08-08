@@ -72,7 +72,7 @@ void UiMenu::Draw()
             char valueFormatted[64] = "";
             if(option)
             {
-                sprintf(valueFormatted, "=%d", option->m_currentValue);
+                option->FormatToCstr(valueFormatted, sizeof(valueFormatted));
             }
 
             const char* titleStr = "";
@@ -84,8 +84,8 @@ void UiMenu::Draw()
             {
                 titleStr = option->m_name;
             }
-            
-            sprintf(itemTextFormatted, "%s%s", titleStr, valueFormatted);
+
+            snprintf(itemTextFormatted, sizeof(itemTextFormatted), "%s=%s", titleStr, valueFormatted);
 
             m_display->DrawText(paddingX, currentY+paddingY-1, itemTextFormatted);
 
